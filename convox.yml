@@ -1,0 +1,8 @@
+services:
+  web:
+    build: .
+    port: 80
+    health: /
+    scale:
+      count: 1-3
+      memory: 256
