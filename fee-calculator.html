@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Credit Card Fee Coverage Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      background: #f5f5f7;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      max-width: 480px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 1.75rem;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      font-size: 1.4rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    p.subtitle {
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+      color: #555;
+      text-align: center;
+    }
+
+    .field-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: #777;
+      margin-top: 0.2rem;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 0.6rem 0.7rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 0.95rem;
+    }
+
+    input[type="number"]:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+
+    button {
+      width: 100%;
+      padding: 0.7rem 0.9rem;
+      border: none;
+      border-radius: 999px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.25rem;
+      background: #2563eb;
+      color: #fff;
+      transition: transform 0.05s ease, box-shadow 0.1s ease, background 0.1s ease;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+      box-shadow: 0 6px 18px rgba(37, 99, 235, 0.3);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .results {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 12px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      display: none;
+    }
+
+    .results h2 {
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+      font-size: 1.05rem;
+    }
+
+    .results-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.3rem;
+      font-size: 0.95rem;
+    }
+
+    .results-row span.label {
+      color: #555;
+    }
+
+    .results-row span.value {
+      font-weight: 600;
+    }
+
+    .explanation {
+      margin-top: 0.8rem;
+      font-size: 0.88rem;
+      color: #444;
+      line-height: 1.4;
+    }
+
+    .error {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: #b91c1c;
+      display: none;
+    }
+
+    .footer-note {
+      margin-top: 1rem;
+      font-size: 0.78rem;
+      color: #777;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Card Fee Coverage Calculator</h1>
+    <p class="subtitle">
+      See how many average customer tickets are needed to cover your monthly credit card fees.
+    </p>
+
+    <form id="feeForm">
+      <div class="field-group">
+        <label for="monthlyRevenue">Monthly revenue ($)</label>
+        <input
+          id="monthlyRevenue"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="e.g. 50000"
+          required
+        />
+        <div class="hint">Total card volume you run in a typical month.</div>
+      </div>
+
+      <div class="field-group">
+        <label for="feePercent">Card processing fee (%)</label>
+        <input
+          id="feePercent"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="e.g. 3"
+          required
+        />
+        <div class="hint">Your effective rate (including all processor & card brand fees).</div>
+      </div>
+
+      <div class="field-group">
+        <label for="avgTicket">Average ticket size ($)</label>
+        <input
+          id="avgTicket"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="e.g. 25"
+          required
+        />
+        <div class="hint">Typical amount a customer spends per transaction.</div>
+      </div>
+
+      <button type="submit">Calculate</button>
+      <div id="error" class="error"></div>
+    </form>
+
+    <div id="results" class="results">
+      <h2>Results</h2>
+      <div class="results-row">
+        <span class="label">Monthly card fees:</span>
+        <span class="value" id="feesValue"></span>
+      </div>
+      <div class="results-row">
+        <span class="label">Tickets to cover fees (exact):</span>
+        <span class="value" id="ticketsExactValue"></span>
+      </div>
+      <div class="results-row">
+        <span class="label">Tickets to cover fees (rounded up):</span>
+        <span class="value" id="ticketsRoundedValue"></span>
+      </div>
+
+      <div class="explanation" id="explanationText"></div>
+    </div>
+
+    <div class="footer-note">
+      Tip: Use this when explaining cash discount / fee reduction programs to business owners.
+    </div>
+  </div>
+
+  <script>
+    function formatMoney(amount) {
+      if (!isFinite(amount)) return "-";
+      return amount.toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function formatNumber(num, decimals = 2) {
+      if (!isFinite(num)) return "-";
+      return num.toLocaleString("en-US", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    }
+
+    document.getElementById("feeForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const errorEl = document.getElementById("error");
+      const resultsEl = document.getElementById("results");
+
+      errorEl.style.display = "none";
+      errorEl.textContent = "";
+      resultsEl.style.display = "none";
+
+      const monthlyRevenue = parseFloat(
+        document.getElementById("monthlyRevenue").value
+      );
+      const feePercent = parseFloat(
+        document.getElementById("feePercent").value
+      );
+      const avgTicket = parseFloat(document.getElementById("avgTicket").value);
+
+      if (
+        !isFinite(monthlyRevenue) ||
+        !isFinite(feePercent) ||
+        !isFinite(avgTicket)
+      ) {
+        errorEl.textContent = "Please fill in all fields with valid numbers.";
+        errorEl.style.display = "block";
+        return;
+      }
+
+      if (monthlyRevenue <= 0) {
+        errorEl.textContent = "Monthly revenue must be greater than zero.";
+        errorEl.style.display = "block";
+        return;
+      }
+
+      if (feePercent < 0) {
+        errorEl.textContent = "Fee percentage cannot be negative.";
+        errorEl.style.display = "block";
+        return;
+      }
+
+      if (avgTicket <= 0) {
+        errorEl.textContent =
+          "Average ticket size must be greater than zero.";
+        errorEl.style.display = "block";
+        return;
+      }
+
+      const feeRate = feePercent / 100;
+      const monthlyFees = monthlyRevenue * feeRate;
+      const ticketsExact = monthlyFees / avgTicket;
+      const ticketsRounded = Math.ceil(ticketsExact);
+
+      // Populate result fields
+      document.getElementById("feesValue").textContent =
+        formatMoney(monthlyFees);
+      document.getElementById("ticketsExactValue").textContent =
+        formatNumber(ticketsExact, 2);
+      document.getElementById("ticketsRoundedValue").textContent =
+        formatNumber(ticketsRounded, 0);
+
+      // Build explanation line in plain language
+      const explanation = `
+        With a monthly revenue of ${formatMoney(
+          monthlyRevenue
+        )} and a processing rate of ${feePercent}%,
+        you pay about ${formatMoney(monthlyFees)} in card fees each month.
+        At an average ticket of ${formatMoney(avgTicket)}, that means roughly
+        ${formatNumber(
+          ticketsExact,
+          2
+        )} customer tickets – or ${ticketsRounded} full tickets – are needed
+        just to cover your card fees.
+      `;
+
+      document.getElementById("explanationText").textContent = explanation
+        .replace(/\s+/g, " ")
+        .trim();
+
+      resultsEl.style.display = "block";
+    });
+  </script>
+</body>
+</html>
