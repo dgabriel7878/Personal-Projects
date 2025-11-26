@@ -1,10 +1,7 @@
 FROM nginx:alpine
 
-# Copy the HTML file to nginx's default serving directory
-COPY index.html /usr/share/nginx/html/
-
-# Copy custom nginx configuration (optional, using default is fine)
-# COPY nginx.conf /etc/nginx/nginx.conf
+# Copy all files from current directory to nginx's default serving directory
+COPY . /usr/share/nginx/html/
 
 # Expose port 80
 EXPOSE 80
