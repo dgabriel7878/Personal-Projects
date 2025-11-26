@@ -1,6 +1,7 @@
 services:
   web:
-    build: .
+    build:
+      path: .
     port: 80
     health: /
     scale:
