@@ -37,6 +37,10 @@ Sortino, max drawdown, win rate, profit factor, SQN, etc.) per run.
 | MACD Momentum | Momentum | Daily | MACD line crosses its signal line |
 | Donchian Breakout | Trend-following (Turtle-style) | Daily | Buy a 20-day high, exit a 10-day low |
 | Opening Range Breakout | Breakout | Intraday (5m) | Buy a break above the first 15 minutes' range, flatten by session close |
+| SMA200 Trend Filter | Trend-following (regime filter) | Daily | Long only while price is above its 200-day average |
+| RSI(2) Connors Mean Reversion | Mean reversion | Daily | Buy RSI(2) < 10 only while above the 200-day average, exit RSI(2) > 70 |
+| Supertrend | Trend-following (volatility-adaptive) | Daily | Long while the ATR-based Supertrend line signals an uptrend |
+| Stochastic Oscillator | Mean reversion | Daily | Buy %K crossing above %D from oversold, exit the reverse from overbought |
 
 These are well-known, widely documented approaches -- not proprietary
 alpha. The point of this phase is to measure, with real cost assumptions

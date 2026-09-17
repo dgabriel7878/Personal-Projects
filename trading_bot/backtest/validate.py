@@ -30,8 +30,12 @@ from trading_bot.strategies.bollinger_mean_reversion import BollingerMeanReversi
 from trading_bot.strategies.donchian_breakout import DonchianBreakout
 from trading_bot.strategies.macd_momentum import MacdMomentum
 from trading_bot.strategies.opening_range_breakout import OpeningRangeBreakout
+from trading_bot.strategies.rsi2_connors import Rsi2MeanReversion
 from trading_bot.strategies.rsi_mean_reversion import RsiMeanReversion
+from trading_bot.strategies.sma200_trend_filter import Sma200TrendFilter
 from trading_bot.strategies.sma_crossover import SmaCrossover
+from trading_bot.strategies.stochastic_oscillator import StochasticOscillator
+from trading_bot.strategies.supertrend_strategy import SupertrendStrategy
 
 # Parameter grids searched in-sample, plus an optional constraint to reject
 # nonsensical combinations (e.g. a "fast" average that isn't actually
@@ -60,6 +64,26 @@ PARAM_GRIDS = {
     OpeningRangeBreakout: dict(
         grid=dict(range_minutes=[5, 15, 30, 60]),
         constraint=None,
+    ),
+    Sma200TrendFilter: dict(
+        grid=dict(sma_n=range(100, 251, 50)),
+        constraint=None,
+    ),
+    Rsi2MeanReversion: dict(
+        grid=dict(
+            entry_threshold=[5, 10, 15],
+            exit_threshold=[60, 70, 80],
+            trend_n=[150, 200, 250],
+        ),
+        constraint=lambda p: p.exit_threshold > p.entry_threshold,
+    ),
+    SupertrendStrategy: dict(
+        grid=dict(atr_n=[7, 10, 14], multiplier=[2.0, 3.0, 4.0]),
+        constraint=None,
+    ),
+    StochasticOscillator: dict(
+        grid=dict(k_period=[9, 14, 21], oversold=[15, 20, 25], overbought=[75, 80, 85]),
+        constraint=lambda p: p.overbought > p.oversold,
     ),
 }
 

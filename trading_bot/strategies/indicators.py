@@ -52,3 +52,69 @@ def donchian_channel(high, low, n: int = 20):
     upper = pd.Series(high).rolling(n).max()
     lower = pd.Series(low).rolling(n).min()
     return upper, lower
+
+
+def atr(high, low, close, n: int = 14) -> pd.Series:
+    high, low, close = pd.Series(high), pd.Series(low), pd.Series(close)
+    prev_close = close.shift(1)
+    true_range = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1)
+    return true_range.ewm(alpha=1 / n, adjust=False).mean()
+
+
+def stochastic(high, low, close, k_period: int = 14, d_period: int = 3):
+    high, low, close = pd.Series(high), pd.Series(low), pd.Series(close)
+    lowest_low = low.rolling(k_period).min()
+    highest_high = high.rolling(k_period).max()
+    percent_k = 100 * (close - lowest_low) / (highest_high - lowest_low)
+    percent_d = percent_k.rolling(d_period).mean()
+    return percent_k, percent_d
+
+
+def supertrend(high, low, close, n: int = 10, multiplier: float = 3.0):
+    """Returns (supertrend_line, direction), direction=+1 uptrend/-1 downtrend.
+
+    Recursive by definition (each band depends on its own previous value),
+    so it's computed with a plain Python loop rather than vectorized -- this
+    runs once in Strategy.init() over the whole series, not per bar.
+    """
+    high, low, close = pd.Series(high), pd.Series(low), pd.Series(close)
+    hl2 = (high + low) / 2
+    atr_val = atr(high, low, close, n)
+
+    basic_upper = hl2 + multiplier * atr_val
+    basic_lower = hl2 - multiplier * atr_val
+
+    final_upper = basic_upper.copy()
+    final_lower = basic_lower.copy()
+    for i in range(1, len(close)):
+        if basic_upper.iloc[i] < final_upper.iloc[i - 1] or close.iloc[i - 1] > final_upper.iloc[i - 1]:
+            final_upper.iloc[i] = basic_upper.iloc[i]
+        else:
+            final_upper.iloc[i] = final_upper.iloc[i - 1]
+
+        if basic_lower.iloc[i] > final_lower.iloc[i - 1] or close.iloc[i - 1] < final_lower.iloc[i - 1]:
+            final_lower.iloc[i] = basic_lower.iloc[i]
+        else:
+            final_lower.iloc[i] = final_lower.iloc[i - 1]
+
+    line = pd.Series(index=close.index, dtype=float)
+    direction = pd.Series(index=close.index, dtype=float)
+    line.iloc[0] = final_upper.iloc[0]
+    direction.iloc[0] = -1
+
+    for i in range(1, len(close)):
+        was_upper = line.iloc[i - 1] == final_upper.iloc[i - 1]
+        if was_upper:
+            if close.iloc[i] <= final_upper.iloc[i]:
+                line.iloc[i], direction.iloc[i] = final_upper.iloc[i], -1
+            else:
+                line.iloc[i], direction.iloc[i] = final_lower.iloc[i], 1
+        else:
+            if close.iloc[i] >= final_lower.iloc[i]:
+                line.iloc[i], direction.iloc[i] = final_lower.iloc[i], 1
+            else:
+                line.iloc[i], direction.iloc[i] = final_upper.iloc[i], -1
+
+    return line, direction
