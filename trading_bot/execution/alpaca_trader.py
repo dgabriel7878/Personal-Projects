@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 
+from alpaca.common.exceptions import APIError
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce
 from alpaca.trading.requests import MarketOrderRequest, StopLossRequest
@@ -44,11 +45,17 @@ def get_client() -> TradingClient:
 
 
 def current_qty(client: TradingClient, symbol: str) -> float:
+    """Returns 0.0 if there's genuinely no open position for `symbol` (a
+    404 from Alpaca). Anything else -- auth failures, rate limits, a
+    typo'd symbol -- is a real problem and must not be silently treated
+    as "no position", so it's re-raised."""
     try:
         position = client.get_open_position(symbol)
         return float(position.qty)
-    except Exception:
-        return 0.0
+    except APIError as exc:
+        if exc.status_code == 404:
+            return 0.0
+        raise
 
 
 def compute_signal(symbol: str, atr_n: int = ATR_N, multiplier: float = MULTIPLIER):
