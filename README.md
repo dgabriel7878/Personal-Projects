@@ -63,6 +63,8 @@ Sortino, max drawdown, win rate, profit factor, SQN, etc.) per run.
 | Fisher Transform | Momentum (turning points) | Daily | Buy when the Fisher line crosses its lagged signal |
 | Money Flow Index Reversion | Mean reversion (volume-weighted) | Daily | Buy MFI < 20, exit MFI > 80 |
 | Vortex Trend | Trend-following | Daily | Buy +VI/-VI crossover |
+| VWAP Mean Reversion | Mean reversion (bidirectional) | Intraday (5m) | Long/short on reversion to session VWAP; flattens by close |
+| Intraday RSI Reversion | Mean reversion (bidirectional) | Intraday (5m) | Long/short on RSI oversold/overbought; flattens by close |
 
 These are well-known, widely documented approaches -- not proprietary
 alpha. The point of this phase is to measure, with real cost assumptions
@@ -161,69 +163,123 @@ edge.
 
 ## Paper trading (Phase 2)
 
-`trading_bot/execution/alpaca_trader.py` runs the Supertrend strategy
-(currently our best-validated candidate -- see Roadmap) against a free
-**Alpaca paper trading account**: real-time fills, zero real money at
-risk. It's scoped to US stocks/ETFs, since that's what Alpaca's standard
-equities API supports cleanly (whole-share orders, a contingent
-stop-loss leg); crypto and futures aren't wired up here.
+Two live paper-trading setups exist, against a free **Alpaca paper
+trading account** (real-time fills, zero real money at risk). Both are
+scoped to US stocks/ETFs, since that's what Alpaca's standard equities
+API supports cleanly (whole-share orders, a contingent stop-loss leg);
+crypto and futures aren't wired up in either.
 
-Each run computes today's Supertrend signal from fresh daily bars and
-reconciles it against your live paper position: opens a risk-sized
-position with a hard ATR stop-loss if the signal just turned long and
-you're flat, closes the position if it just turned down, otherwise does
-nothing. It is **not** a continuously-running bot -- it's meant to run
-once per trading day, since Supertrend is a daily-bar strategy.
-
-### Setup
+### Setup (shared by both)
 
 1. Sign up free at [alpaca.markets](https://alpaca.markets), switch to
    **Paper Trading** in the dashboard sidebar, and generate an API key
    pair from there (not the live-trading dashboard).
 2. `cp .env.example .env` and fill in `ALPACA_API_KEY` /
    `ALPACA_SECRET_KEY`. `.env` is gitignored -- never commit real keys.
-3. Dry-run it first to see what it *would* do without placing any orders:
-   ```bash
-   python scripts/run_paper_trade.py --symbols AAPL MSFT SPY QQQ --dry-run
-   ```
-4. Once you're comfortable with the output, drop `--dry-run` to actually
-   place paper orders:
-   ```bash
-   python scripts/run_paper_trade.py --symbols AAPL MSFT SPY QQQ
-   ```
+   If auth ever fails, run `python scripts/check_alpaca_auth.py` first
+   to isolate whether it's a credentials problem before debugging
+   anything else.
 
-### Running it daily
+### Intraday (long + short, active strategy)
 
-This needs to run once per trading day, ideally shortly after market
-close so the day's bar is final. Options:
-- **macOS/Linux cron**: `crontab -e`, add a line like
-  `30 16 * * 1-5 cd /path/to/Personal-Projects && .venv/bin/python scripts/run_paper_trade.py --symbols AAPL MSFT SPY QQQ >> paper_trade.log 2>&1`
-  (4:30pm local time, weekdays; adjust for your timezone and market hours).
-- **Task Scheduler** on Windows, similarly.
+`trading_bot/execution/intraday_trader.py` trades the VWAP Mean
+Reversion or Intraday RSI Reversion strategy (choose with `--strategy
+vwap` or `--strategy rsi`) -- both bidirectional, both flatten before
+the close, neither holds overnight. This is the **currently active**
+live strategy.
 
-The reconciliation logic (buy/close/no-action decisions) was verified
-against a mocked Alpaca client covering all three branches before this
-was ever pointed at a real account, but the live API itself hasn't been
-exercised (this environment has no network access to Alpaca) -- watch
-the first several runs closely and report anything unexpected.
+Unlike the daily setup below, this needs to be invoked repeatedly
+throughout market hours, not once after close, since these strategies
+react to intraday price action. Each invocation computes the latest
+signal from fresh 5-minute bars, decides long / short / exit / hold, and
+reconciles it against your live position -- opening a risk-sized
+position with a hard ATR stop-loss, closing/covering on a reversion
+signal, or force-flattening in the last ~10 minutes before the close
+regardless of signal.
+
+```bash
+# dry-run first
+python scripts/run_intraday_trade.py --symbols AAPL MSFT SPY QQQ --strategy vwap --dry-run
+# then for real
+python scripts/run_intraday_trade.py --symbols AAPL MSFT SPY QQQ --strategy vwap
+```
+
+**Scheduling** -- run it every 5 minutes during market hours (9:30am-4:00pm
+ET, weekdays):
+```bash
+# crontab -e (macOS/Linux) -- runs :30-:55 past each hour, 9am-4pm local
+# adjust the hour range for your timezone vs. market hours (9:30-16:00 ET)
+*/5 9-16 * * 1-5 cd /path/to/Personal-Projects && .venv/bin/python scripts/run_intraday_trade.py --symbols AAPL MSFT SPY QQQ --strategy vwap >> intraday_trade.log 2>&1
+```
+
+**What's been verified vs. not**: the full decision logic (long entry,
+short entry, signal-based exit for both directions, and the forced
+end-of-day flatten) was tested against a mocked Alpaca client covering
+every branch, and a real bug was caught and fixed this way -- risk-based
+sizing had no leverage cap, so a tight intraday stop could silently demand
+a position bigger than the account could afford and the order would just
+never fill. What's **not** verified is the real Alpaca API response to an
+actual short-sale order (whether the stop-loss leg correctly becomes a
+buy-to-cover) -- this sandbox has no network access to test that. Watch
+your first few short trades closely.
+
+Two intraday strategies are backtestable but neither has been walk-forward
+validated the way Supertrend/Keltner Breakout were on daily data --
+yfinance only gives 60 days of 5-minute history, a thin sample for a
+strategy trading every day. Run both through `scripts/run_backtests.py`
+and `scripts/validate_strategy.py` before trusting either with real
+conviction; `--strategy vwap` is the default here only because it was
+asked for first, not because it's been shown to be better.
+
+### Daily (Supertrend, long-only)
+
+`trading_bot/execution/alpaca_trader.py` + `scripts/run_paper_trade.py`
+still exist and work the same way as before -- trading Supertrend
+long-only, once per trading day after close:
+
+```bash
+python scripts/run_paper_trade.py --symbols AAPL MSFT SPY QQQ --dry-run
+```
+```bash
+# crontab -e -- 4:30pm local time, weekdays; adjust for your timezone
+30 16 * * 1-5 cd /path/to/Personal-Projects && .venv/bin/python scripts/run_paper_trade.py --symbols AAPL MSFT SPY QQQ >> paper_trade.log 2>&1
+```
+
+This is no longer the actively-traded strategy (superseded by the
+intraday setup above per a deliberate choice to trade more frequently
+and both directions), but the code is left in place since Supertrend
+remains the most out-of-sample-validated strategy in this repo.
 
 ## Roadmap
 
 - **Phase 1 (done, ongoing)**: backtest, rank, and out-of-sample validate
-  strategies across markets. 32 strategies tested; **Supertrend** is the
-  current leader (9/9 tickers positive out-of-sample), with **Keltner
-  Breakout** a close second (8/9). Keep revisiting this as new strategies
-  or longer histories become worth testing.
-- **Phase 2 (built, needs live testing)**: `trading_bot/execution/
-  alpaca_trader.py` + `scripts/run_paper_trade.py` run Supertrend against
-  a free **Alpaca paper trading account** once per trading day (see
-  "Paper trading" above for setup). The reconciliation logic is verified
-  against a mocked client, but not yet exercised against the real API --
-  run it (start with `--dry-run`) for a meaningful sample period before
-  trusting it.
-- **Phase 3**: once the paper account confirms the edge survives real
-  execution (slippage, fills, latency, live data quirks), move a small
-  amount of real capital, with strict position sizing and a kill switch.
+  strategies across markets. 34 strategies tested on daily/swing
+  timeframes; **Supertrend** is the current leader there (9/9 tickers
+  positive out-of-sample), with **Keltner Breakout** a close second
+  (8/9). The two intraday strategies (VWAP Mean Reversion, Intraday RSI
+  Reversion) are backtestable but not yet walk-forward validated --
+  yfinance's 60-day intraday history is thin for that. Keep revisiting
+  as new strategies, longer histories, or better intraday data become
+  available.
+- **Phase 2 (built, needs live testing)**: two live setups exist against
+  a free **Alpaca paper trading account** (see "Paper trading" above).
+  The **intraday, bidirectional setup is currently the active one** --
+  a deliberate switch from the originally-live daily Supertrend, in
+  favor of trading more frequently and both long and short. Both setups'
+  reconciliation logic is verified against a mocked client (a real
+  leverage-sizing bug and an RSI edge case were caught this way before
+  either went near a live account), but neither has been exercised
+  against Alpaca's real API from this environment (no network access
+  here) -- run intraday with `--dry-run` first and watch closely,
+  especially the first real short trade.
+- **Possible follow-up -- longer intraday history**: Alpaca's own market
+  data API likely gives more than yfinance's 60-day cap on 5-minute
+  bars, which would make walk-forward validating the intraday strategies
+  actually meaningful. Not built; flagged as a real gap, not resolved.
+- **Phase 3**: once a paper account confirms an edge survives real
+  execution (slippage, fills, latency, live data quirks) for a
+  meaningful sample period, move a small amount of real capital, with
+  strict position sizing and a kill switch.
 - **Possible future addition -- macro regime filter**: an overlay like
   "only trade long while the VIX is below X" or "while the yield curve
   isn't inverted" is buildable with free historical data (VIX via

@@ -26,8 +26,13 @@ def rsi(values, n: int = 14) -> pd.Series:
     loss = -delta.clip(upper=0)
     avg_gain = gain.ewm(alpha=1 / n, adjust=False).mean()
     avg_loss = loss.ewm(alpha=1 / n, adjust=False).mean()
-    rs = avg_gain / avg_loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
+    # avg_loss == 0 with avg_gain > 0 (no losses at all in the window) is a
+    # real, if rare, case -- RSI should be 100 there, not NaN from a 0
+    # division guard. Zero gain AND zero loss (no movement at all) is
+    # genuinely undefined; 50 (neutral) is the conventional value.
+    rs = avg_gain / avg_loss
+    result = 100 - (100 / (1 + rs))
+    return result.where(~(avg_gain.eq(0) & avg_loss.eq(0)), 50.0)
 
 
 def macd(values, n_fast: int = 12, n_slow: int = 26, n_signal: int = 9):
