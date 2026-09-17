@@ -19,7 +19,7 @@ REQUIRED_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
 def _cache_path(ticker: str, period: str, interval: str) -> str:
     safe_ticker = ticker.replace("=", "_").replace("^", "")
-    filename = f"{safe_ticker}_{period}_{interval}.parquet"
+    filename = f"{safe_ticker}_{period}_{interval}.csv"
     return os.path.join(CACHE_DIR, filename)
 
 
@@ -37,7 +37,7 @@ def load_ohlcv(
     cache_path = _cache_path(ticker, period, interval)
 
     if use_cache and os.path.exists(cache_path):
-        return pd.read_parquet(cache_path)
+        return pd.read_csv(cache_path, index_col=0, parse_dates=True)
 
     df = yf.download(
         ticker,
@@ -58,6 +58,6 @@ def load_ohlcv(
 
     if use_cache:
         os.makedirs(CACHE_DIR, exist_ok=True)
-        df.to_parquet(cache_path)
+        df.to_csv(cache_path)
 
     return df
