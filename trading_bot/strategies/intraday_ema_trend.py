@@ -1,31 +1,33 @@
-"""Bidirectional intraday mean reversion via RSI: long when RSI is
-oversold, short when overbought, exit on reversion to the RSI midline, a
-hard ATR stop-loss, or end of day (never holds overnight). Same idea as
-the daily RSI strategies, but on 5-minute bars and trading both
-directions instead of only fading dips in an uptrend."""
+"""Bidirectional intraday trend-following: long when a fast EMA is above a
+slow EMA (uptrend), short when below (downtrend), both computed on
+5-minute closes. Opposite premise from the mean-reversion intraday
+strategies -- bets that an intraday move continues rather than reverts.
+Exits on a trend-crossover reversal, a hard ATR stop-loss, or end of day
+(never holds overnight)."""
 
 import numpy as np
 import pandas as pd
 from backtesting import Strategy
 
-from trading_bot.strategies.indicators import atr, rsi
+from trading_bot.strategies.indicators import atr, ema
 from trading_bot.strategies.risk import risk_based_size
 
 
-class IntradayRsiReversion(Strategy):
-    rsi_n = 14
-    oversold = 30
-    overbought = 70
+class IntradayEmaTrend(Strategy):
+    fast_n = 9
+    slow_n = 21
     atr_n = 14
-    stop_atr_mult = 1.0
+    stop_atr_mult = 1.5
     risk_per_trade = 0.02
-    # See vwap_mean_reversion.py -- same re-entry whipsaw fix, same reason:
-    # a stop-out leaves RSI just as (or more) extreme, so without a
-    # cooldown the entry condition re-fires immediately.
-    cooldown_bars = 6
+    # Same re-entry whipsaw concern as the mean-reversion strategies: a
+    # stop-out in a choppy market can leave the EMAs on the verge of
+    # re-crossing right back, so a short cooldown avoids re-entering into
+    # the same chop repeatedly.
+    cooldown_bars = 3
 
     def init(self):
-        self.rsi = self.I(rsi, self.data.Close, self.rsi_n)
+        self.fast = self.I(ema, self.data.Close, self.fast_n)
+        self.slow = self.I(ema, self.data.Close, self.slow_n)
         self.atr = self.I(atr, self.data.High, self.data.Low, self.data.Close, self.atr_n)
         self.day_id = pd.factorize(self.data.index.date)[0]
         self.last_exit_bar = -10**9
@@ -40,12 +42,16 @@ class IntradayRsiReversion(Strategy):
             self.last_exit_bar = i
         self._was_in_position = bool(self.position)
 
+        if np.isnan(self.slow[-1]):
+            return
+        uptrend = self.fast[-1] > self.slow[-1]
+
         if self.position:
             if is_last_bar_of_day:
                 self.position.close()
-            elif self.position.is_long and self.rsi[-1] >= 50:
+            elif self.position.is_long and not uptrend:
                 self.position.close()
-            elif self.position.is_short and self.rsi[-1] <= 50:
+            elif self.position.is_short and uptrend:
                 self.position.close()
             return
 
@@ -56,12 +62,12 @@ class IntradayRsiReversion(Strategy):
         if not atr_value or np.isnan(atr_value):
             return
 
-        if self.rsi[-1] < self.oversold:
+        if uptrend:
             stop_price = price - self.stop_atr_mult * atr_value
             size = risk_based_size(self.equity, price, stop_price, self.risk_per_trade)
             if size:
                 self.buy(size=size, sl=stop_price)
-        elif self.rsi[-1] > self.overbought:
+        else:
             stop_price = price + self.stop_atr_mult * atr_value
             size = risk_based_size(self.equity, price, stop_price, self.risk_per_trade)
             if size:

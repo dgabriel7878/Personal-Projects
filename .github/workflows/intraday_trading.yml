@@ -1,15 +1,14 @@
 name: Intraday paper trading
 
+# The scheduled cron trigger is intentionally disabled. Real walk-forward
+# validation (scripts/validate_strategy.py) showed both bidirectional
+# intraday strategies (VWAP Mean Reversion, Intraday RSI Reversion) losing
+# money out-of-sample on every tested ticker, with a re-entry whipsaw bug
+# on top -- this should never have been scheduled live before that
+# validation existed. Re-enable the `schedule:` trigger below only once a
+# strategy has a real positive out-of-sample edge. Manual runs via
+# workflow_dispatch (e.g. to smoke-test in --dry-run) still work.
 on:
-  schedule:
-    # Every 5 minutes, 13:00-21:59 UTC, weekdays. This window is
-    # deliberately wider than real NYSE hours (9:30am-4:00pm ET) to cover
-    # both EDT (13:30-20:00 UTC) and EST (14:30-21:00 UTC) without needing
-    # to hand-adjust for DST -- reconcile()'s own Alpaca-clock check
-    # (get_market_clock) is what actually enforces real market hours and
-    # cleanly no-ops outside them. GitHub's cron is best-effort and can
-    # lag under load; this isn't a low-latency system, so that's fine.
-    - cron: "*/5 13-21 * * 1-5"
   workflow_dispatch: {}
 
 jobs:

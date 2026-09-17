@@ -10,6 +10,7 @@ from trading_bot.strategies.donchian_breakout import DonchianBreakout
 from trading_bot.strategies.ema_crossover import EmaCrossover
 from trading_bot.strategies.fisher_transform_strategy import FisherTransformStrategy
 from trading_bot.strategies.ichimoku_cloud import IchimokuCloud
+from trading_bot.strategies.intraday_ema_trend import IntradayEmaTrend
 from trading_bot.strategies.intraday_rsi_reversion import IntradayRsiReversion
 from trading_bot.strategies.keltner_breakout import KeltnerBreakout
 from trading_bot.strategies.linreg_trend import LinregTrend
@@ -17,6 +18,7 @@ from trading_bot.strategies.macd_momentum import MacdMomentum
 from trading_bot.strategies.money_flow_index_reversion import MoneyFlowIndexReversion
 from trading_bot.strategies.obv_trend import ObvTrend
 from trading_bot.strategies.opening_range_breakout import OpeningRangeBreakout
+from trading_bot.strategies.orb_bidirectional import OrbBidirectional
 from trading_bot.strategies.parabolic_sar_strategy import ParabolicSarStrategy
 from trading_bot.strategies.return_zscore_reversal import ReturnZscoreReversal
 from trading_bot.strategies.roc_momentum import RocMomentum
@@ -31,6 +33,7 @@ from trading_bot.strategies.turn_of_month import TurnOfMonth
 from trading_bot.strategies.turtle_soup import TurtleSoup
 from trading_bot.strategies.vortex_trend import VortexTrend
 from trading_bot.strategies.vwap_mean_reversion import VwapMeanReversion
+from trading_bot.strategies.vwap_momentum import VwapMomentum
 from trading_bot.strategies.williams_r_reversion import WilliamsRReversion
 
 # Each entry: (display name, Strategy class, timeframe -- "daily" or "intraday")
@@ -69,4 +72,7 @@ STRATEGY_REGISTRY = [
     ("Vortex Trend", VortexTrend, "daily"),
     ("VWAP Mean Reversion", VwapMeanReversion, "intraday"),
     ("Intraday RSI Reversion", IntradayRsiReversion, "intraday"),
+    ("Intraday EMA Trend", IntradayEmaTrend, "intraday"),
+    ("VWAP Momentum", VwapMomentum, "intraday"),
+    ("ORB Bidirectional", OrbBidirectional, "intraday"),
 ]

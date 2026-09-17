@@ -65,6 +65,9 @@ Sortino, max drawdown, win rate, profit factor, SQN, etc.) per run.
 | Vortex Trend | Trend-following | Daily | Buy +VI/-VI crossover |
 | VWAP Mean Reversion | Mean reversion (bidirectional) | Intraday (5m) | Long/short on reversion to session VWAP; flattens by close |
 | Intraday RSI Reversion | Mean reversion (bidirectional) | Intraday (5m) | Long/short on RSI oversold/overbought; flattens by close |
+| Intraday EMA Trend | Trend-following (bidirectional) | Intraday (5m) | Long/short by fast/slow EMA crossover; flattens by close |
+| VWAP Momentum | Momentum (bidirectional) | Intraday (5m) | Long/short breakout *away* from session VWAP (trend-following mirror of VWAP Mean Reversion); flattens by close |
+| ORB Bidirectional | Breakout (bidirectional) | Intraday (5m) | Long/short break of the opening range high/low (adds the short side to Opening Range Breakout); flattens by close |
 
 These are well-known, widely documented approaches -- not proprietary
 alpha. The point of this phase is to measure, with real cost assumptions
@@ -180,13 +183,43 @@ crypto and futures aren't wired up in either.
    to isolate whether it's a credentials problem before debugging
    anything else.
 
-### Intraday (long + short, active strategy)
+### Daily stock scanner (selection tool, not a strategy)
 
-`trading_bot/execution/intraday_trader.py` trades the VWAP Mean
-Reversion or Intraday RSI Reversion strategy (choose with `--strategy
-vwap` or `--strategy rsi`) -- both bidirectional, both flatten before
-the close, neither holds overnight. This is the **currently active**
-live strategy.
+```bash
+python scripts/scan_movers.py --top 15
+```
+
+Prints today's most active stocks (by volume/trade count) and biggest
+gainers/losers, cross-referenced against how much recent news each one
+has, ranked catalyst-first. Uses the same Alpaca account/keys as
+everything else above -- no separate signup. See
+`trading_bot/scanner/news_scanner.py`'s docstring: this only narrows
+*which* symbols to look at, it doesn't decide long/short/when -- that's
+still the job of a (separately validated) strategy.
+
+### Intraday (long + short, currently paused -- no validated edge yet)
+
+**Status: not live.** `.github/workflows/intraday_trading.yml`'s
+scheduled cron trigger has been disabled -- real walk-forward validation
+(`scripts/validate_strategy.py`) on real 5-minute data showed VWAP Mean
+Reversion and Intraday RSI Reversion losing money out-of-sample on
+**every** tested ticker (0/9 each), on top of a re-entry whipsaw bug that
+produced 1,000+ trades per ticker in 60 days. The bug is fixed (a
+`cooldown_bars` re-entry delay, see the strategy files), but that fix
+alone doesn't establish an edge -- it was never validated live in the
+first place, which is why the cron trigger stays off until a strategy
+here actually earns it. Three new intraday strategies (Intraday EMA
+Trend, VWAP Momentum, ORB Bidirectional -- momentum/trend-following, the
+opposite premise from the two mean-reversion strategies above) have been
+added for comparison; none of the five is confirmed to have real edge
+yet. Run `scripts/run_backtests.py` and `scripts/validate_strategy.py`
+against all five before trusting any of them.
+
+`trading_bot/execution/intraday_trader.py` still exists and can trade
+VWAP Mean Reversion or Intraday RSI Reversion manually (`--strategy vwap`
+/ `--strategy rsi`) for dry-run testing, but re-enable the workflow's
+`schedule:` trigger only once walk-forward validation shows real
+out-of-sample edge for whichever strategy is live.
 
 Unlike the daily setup below, this needs to be invoked repeatedly
 throughout market hours, not once after close, since these strategies
@@ -245,12 +278,17 @@ what happened without digging through logs.
 3. Both workflows default to `workflow_dispatch`, so you can trigger a
    test run by hand from the repo's **Actions** tab before waiting for
    the schedule.
-4. **Dry-run by default.** The trading workflow only places real orders
-   if the repo variable `DRY_RUN` is set to exactly `false` (**Settings
-   -> Secrets and variables -> Actions -> Variables tab -> New repository
-   variable**, name `DRY_RUN`, value `false`). Leaving it unset, or any
-   other value, keeps it in dry-run mode -- check the Actions run logs
-   for a few cycles before flipping this.
+4. **Dry-run by default, and the schedule is currently off.** The
+   `schedule:` trigger is commented out in
+   `.github/workflows/intraday_trading.yml` (see above -- no strategy
+   here has validated edge yet), so nothing runs automatically even with
+   `DRY_RUN=false`. You can still trigger it manually from the Actions
+   tab (`workflow_dispatch`) to smoke-test; the trading workflow only
+   places real orders on a manual run if the repo variable `DRY_RUN` is
+   set to exactly `false` (**Settings -> Secrets and variables -> Actions
+   -> Variables tab -> New repository variable**, name `DRY_RUN`, value
+   `false`). Leaving it unset, or any other value, keeps it in dry-run
+   mode.
 
 `scripts/daily_summary.py` (what the summary workflow runs) can also be
 run manually anytime, locally or via the Actions tab, for an on-demand
@@ -276,13 +314,17 @@ was validated locally, but never actually run -- this sandbox has no
 network access to Alpaca or a way to trigger real Actions runs). Watch
 your first few short trades and your first few cloud runs closely.
 
-Two intraday strategies are backtestable but neither has been walk-forward
-validated the way Supertrend/Keltner Breakout were on daily data --
-yfinance only gives 60 days of 5-minute history, a thin sample for a
-strategy trading every day. Run both through `scripts/run_backtests.py`
-and `scripts/validate_strategy.py` before trusting either with real
-conviction; `--strategy vwap` is the default here only because it was
-asked for first, not because it's been shown to be better.
+All five intraday strategies (two mean-reversion, three
+momentum/trend-following) have now been *backtested* against real
+5-minute data, but only the two mean-reversion ones have gone through
+full walk-forward validation so far -- and that validation was
+unambiguous: **0/9 tickers positive out-of-sample for both**, even at
+the widest/most conservative parameters the grid search could find.
+`scripts/run_backtests.py --timeframes intraday` and
+`scripts/validate_strategy.py --strategy "<name>"` need to be run against
+the three new strategies (and the two fixed mean-reversion ones, now
+that the whipsaw bug is gone) before any of them is a candidate for
+`DRY_RUN=false`.
 
 ### Daily (Supertrend, long-only)
 
@@ -306,25 +348,40 @@ remains the most out-of-sample-validated strategy in this repo.
 ## Roadmap
 
 - **Phase 1 (done, ongoing)**: backtest, rank, and out-of-sample validate
-  strategies across markets. 34 strategies tested on daily/swing
-  timeframes; **Supertrend** is the current leader there (9/9 tickers
-  positive out-of-sample), with **Keltner Breakout** a close second
-  (8/9). The two intraday strategies (VWAP Mean Reversion, Intraday RSI
-  Reversion) are backtestable but not yet walk-forward validated --
-  yfinance's 60-day intraday history is thin for that. Keep revisiting
-  as new strategies, longer histories, or better intraday data become
-  available.
-- **Phase 2 (built, needs live testing)**: two live setups exist against
-  a free **Alpaca paper trading account** (see "Paper trading" above).
-  The **intraday, bidirectional setup is currently the active one** --
-  a deliberate switch from the originally-live daily Supertrend, in
-  favor of trading more frequently and both long and short. Both setups'
-  reconciliation logic is verified against a mocked client (a real
-  leverage-sizing bug and an RSI edge case were caught this way before
-  either went near a live account), but neither has been exercised
+  strategies across markets. 37 strategies tested on daily/swing and
+  intraday timeframes; **Supertrend** is the current leader on daily
+  data (9/9 tickers positive out-of-sample), with **Keltner Breakout** a
+  close second (8/9). On intraday data, the result so far is the
+  opposite: real walk-forward validation showed **VWAP Mean Reversion
+  and Intraday RSI Reversion both at 0/9 tickers positive
+  out-of-sample**, with a re-entry whipsaw bug (since fixed) driving
+  1,000+ trades per ticker in 60 days. Three new intraday strategies
+  (Intraday EMA Trend, VWAP Momentum, ORB Bidirectional) were added to
+  test the opposite premise -- trend continuation instead of reversion --
+  and still need walk-forward validation themselves. **No intraday
+  strategy in this repo has validated edge yet.**
+- **Phase 2 (built, paused pending a validated intraday strategy)**: two
+  live setups exist against a free **Alpaca paper trading account** (see
+  "Paper trading" above). The daily Supertrend setup remains the only
+  one with a validated out-of-sample edge. The intraday, bidirectional
+  setup's scheduled GitHub Actions trigger has been **disabled** (see
+  above) until one of its five candidate strategies actually clears
+  walk-forward validation -- it should not have gone live on a
+  schedule before that validation existed in the first place. Both
+  setups' reconciliation logic is verified against a mocked client (a
+  real leverage-sizing bug, a margin/commission-headroom bug, and an RSI
+  edge case were caught this way), but neither has been exercised
   against Alpaca's real API from this environment (no network access
-  here) -- run intraday with `--dry-run` first and watch closely,
-  especially the first real short trade.
+  here) -- run with `--dry-run` first and watch closely once/if an
+  intraday strategy earns its way back to live.
+- **New -- daily stock scanner**: `trading_bot/scanner/news_scanner.py`
+  + `scripts/scan_movers.py` rank today's most active/newsworthy stocks
+  via Alpaca's Screener and News APIs (same account, no new keys). It's
+  a *selection* tool, not a strategy -- it doesn't predict direction and
+  has no backtested return of its own. Intended to narrow the fixed
+  4-symbol universe down to a liquid, catalyst-driven watchlist once a
+  strategy trading its output has real edge; not wired into any live
+  workflow yet.
 - **Possible follow-up -- longer intraday history**: Alpaca's own market
   data API likely gives more than yfinance's 60-day cap on 5-minute
   bars, which would make walk-forward validating the intraday strategies
