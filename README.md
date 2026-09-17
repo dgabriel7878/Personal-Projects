@@ -159,16 +159,68 @@ edge.
 3. Run `python scripts/run_backtests.py` -- it's automatically included in
    the comparison.
 
+## Paper trading (Phase 2)
+
+`trading_bot/execution/alpaca_trader.py` runs the Supertrend strategy
+(currently our best-validated candidate -- see Roadmap) against a free
+**Alpaca paper trading account**: real-time fills, zero real money at
+risk. It's scoped to US stocks/ETFs, since that's what Alpaca's standard
+equities API supports cleanly (whole-share orders, a contingent
+stop-loss leg); crypto and futures aren't wired up here.
+
+Each run computes today's Supertrend signal from fresh daily bars and
+reconciles it against your live paper position: opens a risk-sized
+position with a hard ATR stop-loss if the signal just turned long and
+you're flat, closes the position if it just turned down, otherwise does
+nothing. It is **not** a continuously-running bot -- it's meant to run
+once per trading day, since Supertrend is a daily-bar strategy.
+
+### Setup
+
+1. Sign up free at [alpaca.markets](https://alpaca.markets), switch to
+   **Paper Trading** in the dashboard sidebar, and generate an API key
+   pair from there (not the live-trading dashboard).
+2. `cp .env.example .env` and fill in `ALPACA_API_KEY` /
+   `ALPACA_SECRET_KEY`. `.env` is gitignored -- never commit real keys.
+3. Dry-run it first to see what it *would* do without placing any orders:
+   ```bash
+   python scripts/run_paper_trade.py --symbols AAPL MSFT SPY QQQ --dry-run
+   ```
+4. Once you're comfortable with the output, drop `--dry-run` to actually
+   place paper orders:
+   ```bash
+   python scripts/run_paper_trade.py --symbols AAPL MSFT SPY QQQ
+   ```
+
+### Running it daily
+
+This needs to run once per trading day, ideally shortly after market
+close so the day's bar is final. Options:
+- **macOS/Linux cron**: `crontab -e`, add a line like
+  `30 16 * * 1-5 cd /path/to/Personal-Projects && .venv/bin/python scripts/run_paper_trade.py --symbols AAPL MSFT SPY QQQ >> paper_trade.log 2>&1`
+  (4:30pm local time, weekdays; adjust for your timezone and market hours).
+- **Task Scheduler** on Windows, similarly.
+
+The reconciliation logic (buy/close/no-action decisions) was verified
+against a mocked Alpaca client covering all three branches before this
+was ever pointed at a real account, but the live API itself hasn't been
+exercised (this environment has no network access to Alpaca) -- watch
+the first several runs closely and report anything unexpected.
+
 ## Roadmap
 
-- **Phase 1 (this repo, in progress)**: backtest and rank strategies
-  across markets; iterate on parameters until one shows a consistent,
-  robust edge net of costs (not just a lucky curve-fit on one ticker/date
-  range).
-- **Phase 2**: wire the winning strategy into a live-data loop against an
-  **Alpaca paper trading account** (free, real-time fills, zero real
-  money at risk) via their REST/websocket API, and run it for a
-  meaningful sample period before trusting it.
+- **Phase 1 (done, ongoing)**: backtest, rank, and out-of-sample validate
+  strategies across markets. 32 strategies tested; **Supertrend** is the
+  current leader (9/9 tickers positive out-of-sample), with **Keltner
+  Breakout** a close second (8/9). Keep revisiting this as new strategies
+  or longer histories become worth testing.
+- **Phase 2 (built, needs live testing)**: `trading_bot/execution/
+  alpaca_trader.py` + `scripts/run_paper_trade.py` run Supertrend against
+  a free **Alpaca paper trading account** once per trading day (see
+  "Paper trading" above for setup). The reconciliation logic is verified
+  against a mocked client, but not yet exercised against the real API --
+  run it (start with `--dry-run`) for a meaningful sample period before
+  trusting it.
 - **Phase 3**: once the paper account confirms the edge survives real
   execution (slippage, fills, latency, live data quirks), move a small
   amount of real capital, with strict position sizing and a kill switch.
