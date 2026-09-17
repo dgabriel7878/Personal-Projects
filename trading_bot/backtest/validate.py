@@ -26,16 +26,38 @@ from trading_bot.config import (
 )
 from trading_bot.data.loader import load_ohlcv
 from trading_bot.strategies import STRATEGY_REGISTRY
+from trading_bot.strategies.absolute_momentum import AbsoluteMomentum
+from trading_bot.strategies.accum_dist_trend import AccumDistTrend
+from trading_bot.strategies.adx_dmi_trend import AdxDmiTrend
+from trading_bot.strategies.awesome_oscillator_strategy import AwesomeOscillatorStrategy
 from trading_bot.strategies.bollinger_mean_reversion import BollingerMeanReversion
+from trading_bot.strategies.bollinger_squeeze_breakout import BollingerSqueezeBreakout
+from trading_bot.strategies.cci_reversion import CciReversion
+from trading_bot.strategies.chaikin_money_flow_strategy import ChaikinMoneyFlowStrategy
 from trading_bot.strategies.donchian_breakout import DonchianBreakout
+from trading_bot.strategies.ema_crossover import EmaCrossover
+from trading_bot.strategies.fisher_transform_strategy import FisherTransformStrategy
+from trading_bot.strategies.ichimoku_cloud import IchimokuCloud
+from trading_bot.strategies.keltner_breakout import KeltnerBreakout
+from trading_bot.strategies.linreg_trend import LinregTrend
 from trading_bot.strategies.macd_momentum import MacdMomentum
+from trading_bot.strategies.money_flow_index_reversion import MoneyFlowIndexReversion
+from trading_bot.strategies.obv_trend import ObvTrend
 from trading_bot.strategies.opening_range_breakout import OpeningRangeBreakout
+from trading_bot.strategies.parabolic_sar_strategy import ParabolicSarStrategy
+from trading_bot.strategies.return_zscore_reversal import ReturnZscoreReversal
+from trading_bot.strategies.roc_momentum import RocMomentum
 from trading_bot.strategies.rsi2_connors import Rsi2MeanReversion
 from trading_bot.strategies.rsi_mean_reversion import RsiMeanReversion
 from trading_bot.strategies.sma200_trend_filter import Sma200TrendFilter
 from trading_bot.strategies.sma_crossover import SmaCrossover
 from trading_bot.strategies.stochastic_oscillator import StochasticOscillator
 from trading_bot.strategies.supertrend_strategy import SupertrendStrategy
+from trading_bot.strategies.triple_ma_alignment import TripleMaAlignment
+from trading_bot.strategies.turn_of_month import TurnOfMonth
+from trading_bot.strategies.turtle_soup import TurtleSoup
+from trading_bot.strategies.vortex_trend import VortexTrend
+from trading_bot.strategies.williams_r_reversion import WilliamsRReversion
 
 # Parameter grids searched in-sample, plus an optional constraint to reject
 # nonsensical combinations (e.g. a "fast" average that isn't actually
@@ -84,6 +106,94 @@ PARAM_GRIDS = {
     StochasticOscillator: dict(
         grid=dict(k_period=[9, 14, 21], oversold=[15, 20, 25], overbought=[75, 80, 85]),
         constraint=lambda p: p.overbought > p.oversold,
+    ),
+    EmaCrossover: dict(
+        grid=dict(fast_n=range(8, 21, 4), slow_n=range(20, 61, 10)),
+        constraint=lambda p: p.fast_n < p.slow_n,
+    ),
+    TripleMaAlignment: dict(
+        grid=dict(fast_n=[5, 10, 15], mid_n=[30, 50, 70], slow_n=[150, 200, 250]),
+        constraint=lambda p: p.fast_n < p.mid_n < p.slow_n,
+    ),
+    AdxDmiTrend: dict(
+        grid=dict(n=[10, 14, 20], adx_threshold=[15, 20, 25, 30]),
+        constraint=None,
+    ),
+    IchimokuCloud: dict(
+        grid=dict(tenkan_n=[7, 9, 12], kijun_n=[22, 26, 30]),
+        constraint=lambda p: p.tenkan_n < p.kijun_n,
+    ),
+    ParabolicSarStrategy: dict(
+        grid=dict(af_step=[0.01, 0.02, 0.03], af_max=[0.1, 0.2, 0.3]),
+        constraint=None,
+    ),
+    KeltnerBreakout: dict(
+        grid=dict(n=[14, 20, 26], multiplier=[1.5, 2.0, 2.5]),
+        constraint=None,
+    ),
+    LinregTrend: dict(
+        grid=dict(n=[10, 20, 30, 50]),
+        constraint=None,
+    ),
+    RocMomentum: dict(
+        grid=dict(n=[10, 20, 30, 50]),
+        constraint=None,
+    ),
+    AbsoluteMomentum: dict(
+        grid=dict(lookback=[126, 189, 252]),
+        constraint=None,
+    ),
+    WilliamsRReversion: dict(
+        grid=dict(n=[10, 14, 21], oversold=[-90, -80, -70], overbought=[-30, -20, -10]),
+        constraint=lambda p: p.overbought > p.oversold,
+    ),
+    CciReversion: dict(
+        grid=dict(n=[14, 20, 30], oversold=[-150, -100, -50], overbought=[50, 100, 150]),
+        constraint=lambda p: p.overbought > p.oversold,
+    ),
+    ReturnZscoreReversal: dict(
+        grid=dict(n=[10, 20, 30], entry_z=[-2.5, -2.0, -1.5]),
+        constraint=None,
+    ),
+    TurtleSoup: dict(
+        grid=dict(n=[10, 20, 30], hold_bars=[3, 5, 10]),
+        constraint=None,
+    ),
+    BollingerSqueezeBreakout: dict(
+        grid=dict(n=[15, 20, 25], squeeze_percentile=[0.1, 0.2, 0.3]),
+        constraint=None,
+    ),
+    ObvTrend: dict(
+        grid=dict(signal_n=[10, 20, 30]),
+        constraint=None,
+    ),
+    ChaikinMoneyFlowStrategy: dict(
+        grid=dict(n=[10, 20, 30]),
+        constraint=None,
+    ),
+    AccumDistTrend: dict(
+        grid=dict(signal_n=[10, 20, 30]),
+        constraint=None,
+    ),
+    TurnOfMonth: dict(
+        grid=dict(first_n_days=[1, 3, 5], last_n_days=[1, 3, 5]),
+        constraint=None,
+    ),
+    AwesomeOscillatorStrategy: dict(
+        grid=dict(n_fast=[3, 5, 8], n_slow=[21, 34, 50]),
+        constraint=lambda p: p.n_fast < p.n_slow,
+    ),
+    FisherTransformStrategy: dict(
+        grid=dict(n=[6, 10, 14, 20]),
+        constraint=None,
+    ),
+    MoneyFlowIndexReversion: dict(
+        grid=dict(n=[10, 14, 21], oversold=[10, 20, 30], overbought=[70, 80, 90]),
+        constraint=lambda p: p.overbought > p.oversold,
+    ),
+    VortexTrend: dict(
+        grid=dict(n=[10, 14, 21, 28]),
+        constraint=None,
     ),
 }
 

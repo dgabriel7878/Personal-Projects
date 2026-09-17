@@ -41,6 +41,28 @@ Sortino, max drawdown, win rate, profit factor, SQN, etc.) per run.
 | RSI(2) Connors Mean Reversion | Mean reversion | Daily | Buy RSI(2) < 10 only while above the 200-day average, exit RSI(2) > 70 |
 | Supertrend | Trend-following (volatility-adaptive) | Daily | Long while the ATR-based Supertrend line signals an uptrend |
 | Stochastic Oscillator | Mean reversion | Daily | Buy %K crossing above %D from oversold, exit the reverse from overbought |
+| EMA Crossover | Trend-following | Daily | Fast EMA(12) crosses slow EMA(26) |
+| Triple MA Alignment | Trend-following (regime filter) | Daily | Long only while fast > mid > slow SMA (10/50/200) |
+| ADX/DMI Trend | Trend-following + strength filter | Daily | Buy +DI/-DI cross, only when ADX confirms trend strength |
+| Ichimoku Cloud | Trend-following | Daily | Buy Tenkan/Kijun cross while price is above the cloud |
+| Parabolic SAR | Trend-following (trailing stop) | Daily | Long while the SAR dots trail below price |
+| Keltner Breakout | Volatility breakout | Daily | Buy a close above the ATR-based upper Keltner band |
+| Linear Regression Trend | Trend-following (statistical) | Daily | Long while a rolling linear-regression slope is positive |
+| ROC Momentum | Momentum | Daily | Long while the N-bar rate of change is positive |
+| Absolute Momentum (252d) | Momentum (time-series) | Daily | Long while the trailing ~12-month return is positive |
+| Williams %R Reversion | Mean reversion | Daily | Buy deeply oversold %R, exit once overbought |
+| CCI Reversion | Mean reversion | Daily | Buy CCI < -100, exit CCI > 100 |
+| Return Z-Score Reversal | Mean reversion (shock fade) | Daily | Buy after an unusually large down day (return z-score), exit once normalized |
+| Turtle Soup | Contrarian (false-breakout fade) | Daily | Buy a failed break below the N-day low, exit after a fixed hold |
+| Bollinger Squeeze Breakout | Volatility breakout | Daily | Buy an upper-band breakout following a low-volatility squeeze |
+| OBV Trend | Volume | Daily | Buy when On-Balance Volume crosses above its own average |
+| Chaikin Money Flow | Volume | Daily | Buy when Chaikin Money Flow crosses above zero |
+| Accum/Dist Trend | Volume | Daily | Buy when the Accumulation/Distribution line crosses above its average |
+| Turn of Month | Seasonality/calendar | Daily | Long only during the last/first few trading days of each month |
+| Awesome Oscillator | Momentum | Daily | Buy when the histogram crosses above zero |
+| Fisher Transform | Momentum (turning points) | Daily | Buy when the Fisher line crosses its lagged signal |
+| Money Flow Index Reversion | Mean reversion (volume-weighted) | Daily | Buy MFI < 20, exit MFI > 80 |
+| Vortex Trend | Trend-following | Daily | Buy +VI/-VI crossover |
 
 These are well-known, widely documented approaches -- not proprietary
 alpha. The point of this phase is to measure, with real cost assumptions
@@ -99,7 +121,7 @@ python scripts/validate_strategy.py --strategy "RSI Mean Reversion" --train-frac
 
 Only strategies with a parameter grid registered in
 `trading_bot/backtest/validate.py`'s `PARAM_GRIDS` can be validated this
-way (currently all six). If most tickers keep a positive out-of-sample
+way (currently all of them). If most tickers keep a positive out-of-sample
 Sharpe with their in-sample-optimized parameters, that's real evidence of
 an edge. If most go negative or flip sign, the in-sample backtest was
 likely curve-fit, not a tradable edge.
@@ -150,6 +172,19 @@ edge.
 - **Phase 3**: once the paper account confirms the edge survives real
   execution (slippage, fills, latency, live data quirks), move a small
   amount of real capital, with strict position sizing and a kill switch.
+- **Possible future addition -- macro regime filter**: an overlay like
+  "only trade long while the VIX is below X" or "while the yield curve
+  isn't inverted" is buildable with free historical data (VIX via
+  yfinance, rates via FRED), but requires merging a second data series
+  into the backtest -- every strategy above trades on a single asset's own
+  OHLCV only, so this is an architecture change, not a drop-in strategy.
+  Not started.
+- **Deliberately not pursued (for now) -- news/sentiment signals**:
+  backtesting a real news- or sentiment-driven strategy needs historical
+  news/sentiment data, and the reliable sources (RavenPack, Bloomberg) are
+  paid; free alternatives (GDELT, NewsAPI) are thin on history or quality.
+  This is a materially bigger, separate undertaking, not a natural
+  extension of the technical-indicator strategies here.
 
 **Disclaimer**: a strategy that backtests well is not a guarantee of
 future performance -- markets change, and backtests are prone to overfitting
