@@ -10,6 +10,7 @@ from trading_bot.strategies.donchian_breakout import DonchianBreakout
 from trading_bot.strategies.ema_crossover import EmaCrossover
 from trading_bot.strategies.fisher_transform_strategy import FisherTransformStrategy
 from trading_bot.strategies.ichimoku_cloud import IchimokuCloud
+from trading_bot.strategies.intraday_rsi_reversion import IntradayRsiReversion
 from trading_bot.strategies.keltner_breakout import KeltnerBreakout
 from trading_bot.strategies.linreg_trend import LinregTrend
 from trading_bot.strategies.macd_momentum import MacdMomentum
@@ -29,6 +30,7 @@ from trading_bot.strategies.triple_ma_alignment import TripleMaAlignment
 from trading_bot.strategies.turn_of_month import TurnOfMonth
 from trading_bot.strategies.turtle_soup import TurtleSoup
 from trading_bot.strategies.vortex_trend import VortexTrend
+from trading_bot.strategies.vwap_mean_reversion import VwapMeanReversion
 from trading_bot.strategies.williams_r_reversion import WilliamsRReversion
 
 # Each entry: (display name, Strategy class, timeframe -- "daily" or "intraday")
@@ -65,4 +67,6 @@ STRATEGY_REGISTRY = [
     ("Fisher Transform", FisherTransformStrategy, "daily"),
     ("Money Flow Index Reversion", MoneyFlowIndexReversion, "daily"),
     ("Vortex Trend", VortexTrend, "daily"),
+    ("VWAP Mean Reversion", VwapMeanReversion, "intraday"),
+    ("Intraday RSI Reversion", IntradayRsiReversion, "intraday"),
 ]

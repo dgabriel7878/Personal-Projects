@@ -38,6 +38,7 @@ from trading_bot.strategies.donchian_breakout import DonchianBreakout
 from trading_bot.strategies.ema_crossover import EmaCrossover
 from trading_bot.strategies.fisher_transform_strategy import FisherTransformStrategy
 from trading_bot.strategies.ichimoku_cloud import IchimokuCloud
+from trading_bot.strategies.intraday_rsi_reversion import IntradayRsiReversion
 from trading_bot.strategies.keltner_breakout import KeltnerBreakout
 from trading_bot.strategies.linreg_trend import LinregTrend
 from trading_bot.strategies.macd_momentum import MacdMomentum
@@ -57,6 +58,7 @@ from trading_bot.strategies.triple_ma_alignment import TripleMaAlignment
 from trading_bot.strategies.turn_of_month import TurnOfMonth
 from trading_bot.strategies.turtle_soup import TurtleSoup
 from trading_bot.strategies.vortex_trend import VortexTrend
+from trading_bot.strategies.vwap_mean_reversion import VwapMeanReversion
 from trading_bot.strategies.williams_r_reversion import WilliamsRReversion
 
 # Parameter grids searched in-sample, plus an optional constraint to reject
@@ -194,6 +196,14 @@ PARAM_GRIDS = {
     VortexTrend: dict(
         grid=dict(n=[10, 14, 21, 28]),
         constraint=None,
+    ),
+    VwapMeanReversion: dict(
+        grid=dict(entry_atr_mult=[1.0, 1.5, 2.0], stop_atr_mult=[0.5, 1.0, 1.5]),
+        constraint=None,
+    ),
+    IntradayRsiReversion: dict(
+        grid=dict(oversold=[20, 25, 30], overbought=[70, 75, 80]),
+        constraint=lambda p: p.overbought > p.oversold,
     ),
 }
 

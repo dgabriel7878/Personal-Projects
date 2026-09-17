@@ -317,3 +317,17 @@ def vortex_indicator(high, low, close, n: int = 14):
     vi_plus = vm_plus.rolling(n).sum() / tr_sum
     vi_minus = vm_minus.rolling(n).sum() / tr_sum
     return vi_plus, vi_minus
+
+
+def session_vwap(high, low, close, volume, index) -> pd.Series:
+    """Volume-weighted average price, resetting at the start of each
+    calendar day -- the standard intraday VWAP, not a rolling one.
+    `index` is the bar timestamps (pass `self.data.index`); backtesting.py
+    forwards non-price args through Strategy.I() untouched, so this slots
+    in the same way as any other multi-arg indicator here."""
+    high, low, close, volume = pd.Series(high), pd.Series(low), pd.Series(close), pd.Series(volume)
+    typical_price = (high + low + close) / 3
+    dates = np.asarray(index.date) if hasattr(index, "date") else pd.DatetimeIndex(index).date
+    cum_pv = (typical_price * volume).groupby(dates).cumsum()
+    cum_vol = volume.groupby(dates).cumsum()
+    return cum_pv / cum_vol
