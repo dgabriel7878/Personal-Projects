@@ -15,8 +15,7 @@ Requires ALPACA_API_KEY and ALPACA_SECRET_KEY in the environment (see
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
@@ -31,7 +30,6 @@ from trading_bot.strategies.indicators import atr, rsi, session_vwap
 from trading_bot.strategies.risk import risk_based_size
 
 RISK_PER_TRADE = 0.02
-MARKET_CLOSE_HOUR_ET = 16
 FLATTEN_BUFFER_MINUTES = 10  # stop opening new trades / start flattening this many minutes before the close
 
 
@@ -41,13 +39,18 @@ def get_client() -> TradingClient:
     return TradingClient(api_key, secret_key, paper=True)
 
 
-def is_near_market_close(buffer_minutes: int = FLATTEN_BUFFER_MINUTES) -> bool:
-    """True within `buffer_minutes` of the 4:00pm ET close, by wall-clock
-    time. This is calendar knowledge, not a peek at future price bars --
-    a real trader also knows what time the market closes."""
-    now_et = datetime.now(ZoneInfo("America/New_York"))
-    close_time = now_et.replace(hour=MARKET_CLOSE_HOUR_ET, minute=0, second=0, microsecond=0)
-    return now_et >= close_time - timedelta(minutes=buffer_minutes)
+def get_market_clock(client: TradingClient):
+    """Alpaca's own clock/calendar -- `is_open` and the actual `next_close`
+    for today, correctly accounting for weekends, holidays, and
+    early-close days. Prefer this over hardcoding "4pm ET": that
+    assumption is wrong on e.g. the day after Thanksgiving."""
+    return client.get_clock()
+
+
+def is_near_close(clock, buffer_minutes: int = FLATTEN_BUFFER_MINUTES) -> bool:
+    if not clock.is_open:
+        return False
+    return (clock.next_close - clock.timestamp) <= timedelta(minutes=buffer_minutes)
 
 
 def current_side(client: TradingClient, symbol: str):
@@ -142,6 +145,7 @@ def reconcile(
     max_leverage: float = 1.0,
     dry_run: bool = False,
     client: TradingClient | None = None,
+    clock=None,
     **strategy_kwargs,
 ) -> str:
     """`max_leverage` caps this one trade's notional at that fraction of
@@ -151,17 +155,26 @@ def reconcile(
     the same batch, the caller MUST divide this across them (e.g.
     1.0 / len(symbols)), or each independent call will size as if it
     alone owned the whole account, and the batch as a whole can end up
-    wanting several times more capital than actually exists."""
+    wanting several times more capital than actually exists.
+
+    `clock`: pass Alpaca's clock (from get_market_clock) if the caller
+    already fetched one this cycle, to avoid an extra API call per
+    symbol; each call fetches its own otherwise.
+    """
     if strategy not in DECISION_FUNCS:
         raise ValueError(f"Unknown strategy {strategy!r}, expected one of {list(DECISION_FUNCS)}")
 
     client = client or get_client()
+    clock = clock or get_market_clock(client)
+    if not clock.is_open:
+        return f"{symbol}: market is closed, skipping"
+
     # 5 days of 5-min bars: enough for ATR/RSI warmup across the VWAP's
     # own daily resets, without pulling in stale history that's irrelevant
     # to right now.
     data = load_ohlcv(symbol, period="5d", interval="5m", use_cache=False)
     side, qty_held = current_side(client, symbol)
-    near_close = is_near_market_close()
+    near_close = is_near_close(clock)
 
     action, stop_price = DECISION_FUNCS[strategy](data, side, near_close, **strategy_kwargs)
     price = float(data.Close.iloc[-1])

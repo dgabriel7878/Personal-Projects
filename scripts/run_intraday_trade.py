@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from trading_bot.config import UNIVERSE
-from trading_bot.execution.intraday_trader import DECISION_FUNCS, reconcile
+from trading_bot.execution.intraday_trader import DECISION_FUNCS, get_client, get_market_clock, reconcile
 
 
 def parse_args():
@@ -61,6 +61,12 @@ def main():
         )
         sys.exit(1)
 
+    client = get_client()
+    clock = get_market_clock(client)
+    if not clock.is_open:
+        print(f"Market is closed (next open: {clock.next_open}). Nothing to do -- exiting.")
+        return
+
     # Each new entry alone would otherwise be sized against the FULL
     # account (tight intraday stops mean the leverage cap, not the risk
     # target, usually decides the size -- see risk_based_size's
@@ -71,7 +77,16 @@ def main():
 
     for symbol in args.symbols:
         try:
-            print(reconcile(symbol, strategy=args.strategy, max_leverage=max_leverage, dry_run=args.dry_run))
+            print(
+                reconcile(
+                    symbol,
+                    strategy=args.strategy,
+                    max_leverage=max_leverage,
+                    dry_run=args.dry_run,
+                    client=client,
+                    clock=clock,
+                )
+            )
         except Exception as exc:
             print(f"{symbol}: ERROR - {exc}")
 
