@@ -39,14 +39,14 @@ Sortino, max drawdown, win rate, profit factor, SQN, etc.) per run.
 | Opening Range Breakout | Breakout | Intraday (5m) | Buy a break above the first 15 minutes' range, flatten by session close |
 | SMA200 Trend Filter | Trend-following (regime filter) | Daily | Long only while price is above its 200-day average |
 | RSI(2) Connors Mean Reversion | Mean reversion | Daily | Buy RSI(2) < 10 only while above the 200-day average, exit RSI(2) > 70 |
-| Supertrend | Trend-following (volatility-adaptive) | Daily | Long while the ATR-based Supertrend line signals an uptrend |
+| Supertrend | Trend-following (volatility-adaptive) | Daily | Long while the ATR-based Supertrend line signals an uptrend; risk-based sizing + hard ATR stop-loss |
 | Stochastic Oscillator | Mean reversion | Daily | Buy %K crossing above %D from oversold, exit the reverse from overbought |
 | EMA Crossover | Trend-following | Daily | Fast EMA(12) crosses slow EMA(26) |
 | Triple MA Alignment | Trend-following (regime filter) | Daily | Long only while fast > mid > slow SMA (10/50/200) |
 | ADX/DMI Trend | Trend-following + strength filter | Daily | Buy +DI/-DI cross, only when ADX confirms trend strength |
 | Ichimoku Cloud | Trend-following | Daily | Buy Tenkan/Kijun cross while price is above the cloud |
 | Parabolic SAR | Trend-following (trailing stop) | Daily | Long while the SAR dots trail below price |
-| Keltner Breakout | Volatility breakout | Daily | Buy a close above the ATR-based upper Keltner band |
+| Keltner Breakout | Volatility breakout | Daily | Buy a close above the ATR-based upper Keltner band; risk-based sizing + hard ATR stop-loss |
 | Linear Regression Trend | Trend-following (statistical) | Daily | Long while a rolling linear-regression slope is positive |
 | ROC Momentum | Momentum | Daily | Long while the N-bar rate of change is positive |
 | Absolute Momentum (252d) | Momentum (time-series) | Daily | Long while the trailing ~12-month return is positive |
