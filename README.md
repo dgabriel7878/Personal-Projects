@@ -79,6 +79,27 @@ This prints a per-run results table (one row per strategy x ticker) and a
 ranked summary (strategies sorted by average Sharpe Ratio across every
 market tested), and saves both as timestamped CSVs under `results/`.
 
+## Validating a strategy out-of-sample
+
+A backtest over one fixed history can look great purely because its
+parameters were (unintentionally) tuned to that exact history. Before
+trusting a strategy from the ranking above, walk-forward validate it: the
+tool below optimizes its parameters on the first `--train-frac` of each
+ticker's history, then runs those exact parameters, unmodified, on the
+remaining unseen period.
+
+```bash
+python scripts/validate_strategy.py --strategy "Donchian Breakout" --tickers AAPL SPY QQQ GC=F
+python scripts/validate_strategy.py --strategy "RSI Mean Reversion" --train-frac 0.6
+```
+
+Only strategies with a parameter grid registered in
+`trading_bot/backtest/validate.py`'s `PARAM_GRIDS` can be validated this
+way (currently all six). If most tickers keep a positive out-of-sample
+Sharpe with their in-sample-optimized parameters, that's real evidence of
+an edge. If most go negative or flip sign, the in-sample backtest was
+likely curve-fit, not a tradable edge.
+
 ## Interpreting the output
 
 Don't just chase total return. Look at, in rough order of importance:
