@@ -204,24 +204,77 @@ python scripts/run_intraday_trade.py --symbols AAPL MSFT SPY QQQ --strategy vwap
 python scripts/run_intraday_trade.py --symbols AAPL MSFT SPY QQQ --strategy vwap
 ```
 
-**Scheduling** -- run it every 5 minutes during market hours (9:30am-4:00pm
-ET, weekdays):
+**Scheduling** -- two options, depending on whether you want this running
+on your own machine or fully in the cloud.
+
+#### Option A: local cron (your computer has to be on)
+
 ```bash
 # crontab -e (macOS/Linux) -- runs :30-:55 past each hour, 9am-4pm local
 # adjust the hour range for your timezone vs. market hours (9:30-16:00 ET)
 */5 9-16 * * 1-5 cd /path/to/Personal-Projects && .venv/bin/python scripts/run_intraday_trade.py --symbols AAPL MSFT SPY QQQ --strategy vwap >> intraday_trade.log 2>&1
 ```
 
+If your laptop is asleep, off, or disconnected when a run is due, that
+cycle simply doesn't happen -- no queueing, no catch-up.
+
+#### Option B: GitHub Actions (runs in the cloud, no computer needed)
+
+`.github/workflows/intraday_trading.yml` runs the same script on a cron
+schedule inside GitHub's own infrastructure -- your computer doesn't need
+to be on at all. `.github/workflows/daily_summary.yml` runs once after
+the close and commits a readable report to `logs/summary_<date>.md` in
+the repo, so you can open GitHub at the end of the day and see exactly
+what happened without digging through logs.
+
+**One-time setup:**
+1. Add your Alpaca keys as encrypted repo secrets: repo **Settings ->
+   Secrets and variables -> Actions -> Secrets tab -> New repository
+   secret**, add `ALPACA_API_KEY` and `ALPACA_SECRET_KEY`.
+2. **Important if your repo is private**: GitHub Actions gives private
+   repos only 2,000 free minutes/month. A job every 5 minutes for ~9
+   market hours a day, 5 days/week, can use 2,300-7,000+ minutes/month
+   depending on setup overhead -- likely more than the free tier. Public
+   repos get **unlimited** free Actions minutes, which is why we made
+   this one public. If you'd rather keep it private, either widen the
+   cron interval in `.github/workflows/intraday_trading.yml` (e.g. every
+   15 minutes) or accept that it may stop running partway through the
+   month once the free quota is used (it fails safely -- GitHub doesn't
+   silently bill you for it unless you've added a payment method for
+   overages -- but the automation goes quiet, which you'd need to notice).
+3. Both workflows default to `workflow_dispatch`, so you can trigger a
+   test run by hand from the repo's **Actions** tab before waiting for
+   the schedule.
+4. **Dry-run by default.** The trading workflow only places real orders
+   if the repo variable `DRY_RUN` is set to exactly `false` (**Settings
+   -> Secrets and variables -> Actions -> Variables tab -> New repository
+   variable**, name `DRY_RUN`, value `false`). Leaving it unset, or any
+   other value, keeps it in dry-run mode -- check the Actions run logs
+   for a few cycles before flipping this.
+
+`scripts/daily_summary.py` (what the summary workflow runs) can also be
+run manually anytime, locally or via the Actions tab, for an on-demand
+snapshot of today's filled orders, open positions, and day P&L:
+```bash
+python scripts/daily_summary.py
+```
+
 **What's been verified vs. not**: the full decision logic (long entry,
-short entry, signal-based exit for both directions, and the forced
-end-of-day flatten) was tested against a mocked Alpaca client covering
-every branch, and a real bug was caught and fixed this way -- risk-based
-sizing had no leverage cap, so a tight intraday stop could silently demand
-a position bigger than the account could afford and the order would just
-never fill. What's **not** verified is the real Alpaca API response to an
-actual short-sale order (whether the stop-loss leg correctly becomes a
-buy-to-cover) -- this sandbox has no network access to test that. Watch
-your first few short trades closely.
+short entry, signal-based exit for both directions, the forced
+end-of-day flatten, and the market-closed skip) was tested against a
+mocked Alpaca client covering every branch, and two real bugs were
+caught and fixed this way -- risk-based sizing had no leverage cap, so a
+tight intraday stop could silently demand a position bigger than the
+account could afford and the order would just never fill (this also
+turned out to over-commit capital when trading several symbols in one
+run, fixed by splitting the cap across the batch); and `rsi()` returned
+`NaN` instead of 100 on a lookback window with zero losses. What's
+**not** verified is the real Alpaca API response to an actual
+short-sale order (whether the stop-loss leg correctly becomes a
+buy-to-cover), or the GitHub Actions workflows themselves (YAML syntax
+was validated locally, but never actually run -- this sandbox has no
+network access to Alpaca or a way to trigger real Actions runs). Watch
+your first few short trades and your first few cloud runs closely.
 
 Two intraday strategies are backtestable but neither has been walk-forward
 validated the way Supertrend/Keltner Breakout were on daily data --

@@ -1,0 +1,40 @@
+name: Intraday paper trading
+
+on:
+  schedule:
+    # Every 5 minutes, 13:00-21:59 UTC, weekdays. This window is
+    # deliberately wider than real NYSE hours (9:30am-4:00pm ET) to cover
+    # both EDT (13:30-20:00 UTC) and EST (14:30-21:00 UTC) without needing
+    # to hand-adjust for DST -- reconcile()'s own Alpaca-clock check
+    # (get_market_clock) is what actually enforces real market hours and
+    # cleanly no-ops outside them. GitHub's cron is best-effort and can
+    # lag under load; this isn't a low-latency system, so that's fine.
+    - cron: "*/5 13-21 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run intraday trader
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          # Defaults to dry-run (safe) unless the repo variable DRY_RUN is
+          # explicitly set to "false" -- Settings > Secrets and variables >
+          # Actions > Variables, no code change/push needed to flip it.
+          if [ "${{ vars.DRY_RUN }}" = "false" ]; then
+            python scripts/run_intraday_trade.py --symbols AAPL MSFT SPY QQQ --strategy vwap
+          else
+            python scripts/run_intraday_trade.py --symbols AAPL MSFT SPY QQQ --strategy vwap --dry-run
+          fi
