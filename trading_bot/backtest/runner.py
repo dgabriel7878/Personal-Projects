@@ -7,7 +7,7 @@ import warnings
 from typing import Iterable
 
 import pandas as pd
-from backtesting import Backtest
+from backtesting.lib import FractionalBacktest
 
 from trading_bot.backtest.metrics import extract_summary
 from trading_bot.config import (
@@ -66,7 +66,12 @@ def run_all(
                 if len(data) < 60:
                     raise ValueError(f"not enough bars ({len(data)}) to backtest")
 
-                bt = Backtest(
+                # FractionalBacktest (not plain Backtest) so high-priced
+                # instruments like BTC-USD can still be sized correctly on a
+                # modest cash balance -- Backtest only allows whole-unit
+                # positions, which silently never trades anything priced
+                # above the available cash.
+                bt = FractionalBacktest(
                     data,
                     strategy_cls,
                     cash=cash,
