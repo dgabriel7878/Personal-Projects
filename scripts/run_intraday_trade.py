@@ -61,9 +61,17 @@ def main():
         )
         sys.exit(1)
 
+    # Each new entry alone would otherwise be sized against the FULL
+    # account (tight intraday stops mean the leverage cap, not the risk
+    # target, usually decides the size -- see risk_based_size's
+    # docstring). Splitting it evenly across the symbols in this batch
+    # keeps the batch as a whole from wanting more capital than exists,
+    # even if several signal on the same run.
+    max_leverage = 1.0 / len(args.symbols)
+
     for symbol in args.symbols:
         try:
-            print(reconcile(symbol, strategy=args.strategy, dry_run=args.dry_run))
+            print(reconcile(symbol, strategy=args.strategy, max_leverage=max_leverage, dry_run=args.dry_run))
         except Exception as exc:
             print(f"{symbol}: ERROR - {exc}")
 

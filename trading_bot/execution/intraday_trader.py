@@ -139,10 +139,19 @@ def reconcile(
     symbol: str,
     strategy: str = "vwap",
     risk_per_trade: float = RISK_PER_TRADE,
+    max_leverage: float = 1.0,
     dry_run: bool = False,
     client: TradingClient | None = None,
     **strategy_kwargs,
 ) -> str:
+    """`max_leverage` caps this one trade's notional at that fraction of
+    total equity. With tight intraday stops, the risk target alone will
+    usually want a position sized to ~all of your equity (see
+    risk_based_size's docstring) -- so when trading several symbols in
+    the same batch, the caller MUST divide this across them (e.g.
+    1.0 / len(symbols)), or each independent call will size as if it
+    alone owned the whole account, and the batch as a whole can end up
+    wanting several times more capital than actually exists."""
     if strategy not in DECISION_FUNCS:
         raise ValueError(f"Unknown strategy {strategy!r}, expected one of {list(DECISION_FUNCS)}")
 
@@ -166,7 +175,7 @@ def reconcile(
 
     if action in ("enter_long", "enter_short"):
         account = client.get_account()
-        size = risk_based_size(float(account.equity), price, stop_price, risk_per_trade)
+        size = risk_based_size(float(account.equity), price, stop_price, risk_per_trade, max_leverage)
         if not size:
             return f"{symbol}: {action} signal but risk-based size < 1 share -- skipping"
 
