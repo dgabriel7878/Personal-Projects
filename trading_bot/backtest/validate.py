@@ -9,6 +9,8 @@ particular history and should not be trusted with real money.
 
 from __future__ import annotations
 
+import itertools
+from types import SimpleNamespace
 from typing import Iterable
 
 import pandas as pd
@@ -88,6 +90,36 @@ def _to_native(value):
     return value.item() if hasattr(value, "item") else value
 
 
+def _grid_search(bt: FractionalBacktest, grid: dict, constraint) -> tuple[dict, pd.Series]:
+    """Plain sequential grid search over `grid`, maximizing Sharpe Ratio.
+
+    Avoids Backtest.optimize()'s built-in multiprocessing entirely -- our
+    grids are small (a few dozen combinations at most), so a Python loop is
+    plenty fast and sidesteps the (harmless, but very noisy) worker-process
+    cleanup warnings that library triggers on some platforms.
+    """
+    keys = list(grid.keys())
+    best_params, best_stats, best_sharpe = None, None, None
+
+    for values in itertools.product(*(grid[k] for k in keys)):
+        combo = dict(zip(keys, values))
+        if constraint is not None and not constraint(SimpleNamespace(**combo)):
+            continue
+
+        stats = bt.run(**combo)
+        sharpe = stats["Sharpe Ratio"]
+        if pd.isna(sharpe):
+            continue
+        if best_sharpe is None or sharpe > best_sharpe:
+            best_sharpe = sharpe
+            best_params = {k: _to_native(v) for k, v in combo.items()}
+            best_stats = stats
+
+    if best_params is None:
+        raise ValueError("no parameter combination produced any trades in-sample")
+    return best_params, best_stats
+
+
 def walk_forward(
     strategy_name: str,
     tickers: Iterable[str],
@@ -112,13 +144,7 @@ def walk_forward(
             train_bt = FractionalBacktest(
                 train, strategy_cls, cash=cash, commission=commission, exclusive_orders=True
             )
-            optimize_kwargs = dict(spec["grid"], maximize="Sharpe Ratio")
-            if spec["constraint"] is not None:
-                optimize_kwargs["constraint"] = spec["constraint"]
-            train_stats = train_bt.optimize(**optimize_kwargs)
-            best_params = {
-                k: _to_native(getattr(train_stats._strategy, k)) for k in spec["grid"]
-            }
+            best_params, train_stats = _grid_search(train_bt, spec["grid"], spec["constraint"])
 
             test_bt = FractionalBacktest(
                 test, strategy_cls, cash=cash, commission=commission, exclusive_orders=True
